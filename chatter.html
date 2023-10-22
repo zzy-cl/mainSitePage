@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>chatter</title>
+  <style>
+    #memos-box {
+      width: 100%;
+      position: relative;
+    }
+
+    .memos-talk {
+      padding: 10px;
+      border: 1px solid lightgray;
+      border-radius: 20px;
+      position: absolute;
+      transition: all 0.2s linear;
+    }
+
+    .memos-talk:hover {
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.24);
+    }
+
+    .memos-meta {
+      display: flex;
+      align-items: center;
+      height: 60px;
+    }
+
+    .memos-avatar {
+      width: 60px !important;
+      height: 60px !important;
+      margin: 0 !important;
+      border-radius: 15px;
+    }
+
+    .memos-info {
+      margin-left: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    span.memos-nick {
+      color: #16b597;
+    }
+
+    span.memos-date {
+      opacity: 0.6;
+      font-size: 1.4rem;
+    }
+
+    /* 中间内容 */
+    .memos-content {
+      margin-top: 10px;
+    }
+
+    .memos-images {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .memos-img {
+      margin: 2px !important;
+      object-fit: cover;
+      aspect-ratio: 1 / 1;
+    }
+
+    .memos-files {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .memos-file {
+      margin: 5px;
+      padding: 2px 5px;
+      background-color: lightgray;
+      border: 1px lightgrey solid;
+      border-radius: 8px;
+      font-size: 1.2rem;
+    }
+
+    .memos-file:hover {
+      background-color: transparent;
+      transition: all 1s linear;
+    }
+
+    /* 底部  */
+    .memos-tag {
+      margin: 0 5px;
+      opacity: 0.6;
+      font-size: 1.4rem;
+    }
+  </style>
+</head>
+<body>
+<div id="memos-box"></div>
+</body>
+<script>
+  const url = "https://memos.zhaozeyu.top";
+  fetch(`${url}/api/v1/memo?creatorId=1&tag=说说&limit=30`)
+      .then((res) => res.json())
+      .then((res) => {
+        let items = [];
+        let html = "";
+        res.forEach((item) => {
+          items.push(format(item));
+        });
+        items.forEach((item) => {
+          let imagesHtml = "";
+          let tagsHtml = "";
+          let resourcesHtml = "";
+          item.images.forEach((t, index) => {
+            imagesHtml += `<img class="memos-img" src="${t}" alt="${index}"/>`;
+          });
+          item.resources.forEach((t) => {
+            resourcesHtml += `<div class="memos-file"><a href="${t.url}" target="_blank">${t.filename}</a></div>`;
+          });
+          item.tags.forEach((t) => {
+            tagsHtml += `<span class="memos-tag">#${t}</span>`;
+          });
+          html += `<div class="memos-talk">
+        <div class="memos-meta">
+          <img
+            class="memos-avatar"
+            src="https://imagecloud.zhaozeyu.top/2023/10/07/652166bad3c71.webp"
+            alt="avatar"
+          />
+          <div class="memos-info">
+            <span class="memos-nick">是zzy呀</span>
+            <span class="memos-date">${item.createDate}</span>
+          </div>
+        </div>
+        <div class="memos-content">
+          <div style="white-space: pre-wrap">${item.content}</div>
+          <div class="memos-images">${imagesHtml}</div>
+          <div class="memos-files">${resourcesHtml}</div>
+        </div>
+        <div class="memos-bottom">
+          <div>${tagsHtml}</div>
+        </div>
+      </div>`;
+        });
+        document.getElementById("memos-box").innerHTML = html;
+        setPositions();
+        setPositions();
+      });
+
+  /**
+   * 格式化
+   * @param {{createdTs: string, content: string, resourceList: [{filename: string, externalLink: string}]}} item
+   * @returns {{images: (string[]|*[]), resources: *[], content: string, createDate: string, tags: (string[]|*[])}}
+   */
+  function format(item) {
+    // 创建日期
+    let createDate = getTime(new Date(item.createdTs * 1000).toString());
+    // 标签数组
+    let tagMatches = item.content.match(/\{(.*?)}/g);
+    let tags = tagMatches
+        ? tagMatches.map((t) => t.replace(/^\{(.*)}$/, "$1"))
+        : [];
+    // 图片数组
+    let imageMatches = item.content.match(/!\[.*?]\(.*?\)/g);
+    let images = imageMatches
+        ? imageMatches.map((t) => t.replace(/!\[.*?]\((.*?)\)/, "$1"))
+        : [];
+    // 去除 标签、图片、自定义tag
+    let content = item.content
+        .replace(/#(.*?)\s/g, "")
+        .replace(/!\[(.*?)]\((.*?)\)/g, "")
+        .replace(/\{(.*?)}/g, "")
+        .replace(/^\s+|\s+$/g, "")
+        .replace(
+            /\[(.*?)]\((.*?)\)/g,
+            (match, alt, url) => `<a href=${url}>${alt}</a>`
+        );
+    // 资源数组
+    let resources = [];
+    if (item.resourceList.length > 0) {
+      item.resourceList.forEach((t) => {
+        resources.push({
+          filename: t.filename,
+          url: t.externalLink
+              ? t.externalLink
+              : `${url}/o/r/${t.id}/${t.publicId}/${t.filename}`,
+        });
+      });
+    }
+
+    return {
+      createDate,
+      content,
+      tags,
+      images,
+      resources,
+    };
+  }
+
+  // 时间转化
+  function getTime(time) {
+    let d = new Date(time);
+    let ls = [
+      d.getFullYear(),
+      d.getMonth() + 1,
+      d.getDate(),
+      d.getHours(),
+      d.getMinutes(),
+      d.getSeconds(),
+    ];
+
+    for (let i = 0; i < ls.length; i++) {
+      ls[i] = ls[i] <= 9 ? "0" + ls[i] : ls[i] + "";
+    }
+
+    if (Number(ls[0]) === new Date().getFullYear()) {
+      return ls[1] + "月" + ls[2] + "日 " + ls[3] + ":" + ls[4];
+    } else {
+      return (
+          ls[0] + "年" + ls[1] + "月" + ls[2] + "日 " + ls[3] + ":" + ls[4]
+      );
+    }
+  }
+
+  // 瀑布流布局
+  // 计算一共有多少列，以及每一列之间的间隙
+  function cal() {
+    let boxElement = document.getElementById("memos-box");
+    let boxWidth = boxElement.clientWidth; // box容器的宽度
+    // 计算列的数量
+    let columns;
+    if (boxWidth > 1536) {
+      columns = 5;
+    } else if (boxWidth > 1280) {
+      columns = 4;
+    } else if (boxWidth > 1024) {
+      columns = 3;
+    } else if (boxWidth > 768) {
+      columns = 2;
+    } else if (boxWidth > 512) {
+      columns = 2;
+    } else if (boxWidth > 375) {
+      columns = 1;
+    } else {
+      columns = 1;
+    }
+    // 计算间隙个数，两边不设置间隙
+    let spaceNum = columns - 1; // 间隙数量
+    // 定义每一个间隙的宽度
+    let spaceWidth = 10;
+    // 计算 talk 的宽度
+    let talkWidth = Math.floor((boxWidth - spaceNum * spaceWidth) / columns);
+    return {columns, talkWidth};
+  }
+
+  // 设置每个 talk 的位置
+  function setPositions() {
+    let boxElement = document.getElementById("memos-box");
+    let talksElement = document.querySelectorAll(".memos-talk");
+    // 得到列数和间隙空间
+    let info = cal();
+    // 该数组的长度位列数，每一项表述该列的下一个图片的纵坐标
+    let nextTops = new Array(info.columns);
+    nextTops.fill(10); // 初始化，每一项都为0
+    for (let i = 0; i < talksElement.length; i++) {
+      let talk = talksElement[i];
+      // 找到 nextTops最小值作为当前图片的纵坐标
+      let minTop = Math.min.apply(null, nextTops);
+      talk.style.width = `${info.talkWidth}px`;
+      talk.style.top = `${minTop}px`;
+      // 检测 talk 中是否有 images 元素
+      let imagesElement = talk
+          .querySelector(".memos-content")
+          .querySelector(".memos-images");
+      let imgWidth = (imagesElement.clientWidth - 12) / 3;
+      if (imagesElement.children.length === 1) {
+        imagesElement.children[0].style.aspectRatio = "auto";
+        imagesElement.children[0].style.height = `${imgWidth}px`;
+        imagesElement.children[0].style.width = "auto";
+      } else {
+        for (let j = 0; j < imagesElement.children.length; j++) {
+          imagesElement.children[j].style.width = `${imgWidth}px`;
+        }
+      }
+      // 更新数组这一项的的下一个top值
+      // 得到使用的是第几列的top值
+      let index = nextTops.indexOf(minTop);
+      nextTops[index] += talk.clientHeight + 10;
+      // 横坐标
+      let left = index * (info.talkWidth + 10);
+      talk.style.left = `${left}px`;
+    }
+    // 求最大值
+    let maxTops = Math.max.apply(null, nextTops);
+    // 这只容器的高度
+    boxElement.style.height = `${maxTops}px`;
+  }
+
+  // 检测窗口尺寸变化
+  let timeId = null;
+  window.onresize = function () {
+    if (timeId) {
+      clearTimeout(timeId);
+    }
+    timeId = setTimeout(setPositions, 250);
+  };
+</script>
+</html>

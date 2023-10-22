@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>List</title>
+<style>
+  #memos-box {
+    width: 100%;
+    position: relative;
+  }
+
+  .memos-list {
+    padding: 10px;
+    border: 2px dashed #16b597;
+    border-radius: 20px;
+    position: absolute;
+    transition: all 0.2s linear;
+  }
+
+  .memos-list:hover {
+    box-shadow: 0 0 12px #16b597;
+  }
+
+  .memos-h3 {
+    border-bottom: 2px solid #16b597;
+  }
+
+  .memos-li {
+    list-style: none;
+    border-bottom: 1px solid #16b597;
+  }
+</style>
+</head>
+<body>
+<div id="memos-box"></div>
+</body>
+<script>
+  const url = "https://memos.zhaozeyu.top";
+  fetch(`${url}/api/v1/memo?creatorId=1&tag=清单`)
+      .then((res) => res.json())
+      .then((res) => {
+        let items = [];
+        let html = "";
+        res.forEach((item) => {
+          items.push(format(item));
+        });
+        items.forEach((item) => {
+          html += `<div class="memos-list"><h3 class="memos-h3">${item.title}</h3><ul>${item.content}</ul></div>`;
+        });
+        document.getElementById("memos-box").innerHTML = html;
+        setPositions();
+        setPositions();
+      });
+
+  // 格式化内容
+  function format(item) {
+    let title = item.content.match(/\{(.*?)}/)[1];
+    let content = item.content
+        .replace(/#.*\s/g, "")
+        .replace(/(-\s\[\s]\s)(.*)/g, (match, q, w) => {
+          return `<li class="memos-li"><i style="margin-right:5px" class="fa fa-circle-o" aria-hidden="true" /></i>${w}</li>`;
+        })
+        .replace(/(-\s\[x]\s)(.*)/g, (match, q, w) => {
+          return `<li class="memos-li"><i style="margin-right:5px" class="fa fa-check-circle-o" aria-hidden="true" /></i><s>${w}</s></li>`;
+        });
+    return {
+      title,
+      content,
+    };
+  }
+
+  // 瀑布流布局
+  // 计算一共有多少列，以及每一列之间的间隙
+  function cal() {
+    let boxElement = document.getElementById("memos-box");
+    let boxWidth = boxElement.clientWidth; // box 容器的宽度
+    // 计算列的数量
+    let columns;
+    if (boxWidth > 1536) {
+      columns = 5;
+    } else if (boxWidth > 1280) {
+      columns = 4;
+    } else if (boxWidth > 1024) {
+      columns = 3;
+    } else if (boxWidth > 768) {
+      columns = 2;
+    } else if (boxWidth > 512) {
+      columns = 2;
+    } else if (boxWidth > 375) {
+      columns = 1;
+    } else {
+      columns = 1;
+    }
+    // 计算间隙个数，两边不设置间隙
+    let spaceNum = columns - 1; // 间隙数量
+    // 定义每一个间隙的宽度
+    let spaceWidth = 10;
+    // 计算 list 的宽度
+    let listWidth = Math.floor((boxWidth - spaceNum * spaceWidth) / columns);
+    return {columns, listWidth};
+  }
+
+  // 设置每个 list 的位置
+  function setPositions() {
+    let boxElement = document.getElementById("memos-box");
+    let listsElement = document.getElementsByClassName("memos-list");
+    // 得到列数和间隙空间
+    let info = cal();
+    // 该数组的长度位列数，每一项表述该列的下一个图片的纵坐标
+    let nextTops = new Array(info.columns);
+    nextTops.fill(10); // 初始化，每一项都为0
+    for (let i = 0; i < listsElement.length; i++) {
+      let list = listsElement[i];
+      // 找到 nextTops最小值作为当前图片的纵坐标
+      let minTop = Math.min.apply(null, nextTops);
+      list.style.width = `${info.listWidth}px`;
+      list.style.top = `${minTop}px`;
+      // 更新数组这一项的的下一个top值
+      // 得到使用的是第几列的top值
+      let index = nextTops.indexOf(minTop);
+      nextTops[index] += list.clientHeight + 10;
+      // 横坐标
+      let left = index * (info.listWidth + 10);
+      list.style.left = `${left}px`;
+    }
+    // 求最大值
+    let maxTops = Math.max.apply(null, nextTops);
+    // 这只容器的高度
+    boxElement.style.height = `${maxTops}px`;
+  }
+
+  // 检测窗口尺寸变化
+  let timeId = null;
+  window.onresize = function () {
+    if (timeId) {
+      clearTimeout(timeId);
+    }
+    timeId = setTimeout(setPositions, 250);
+  };
+</script>
+</html>
